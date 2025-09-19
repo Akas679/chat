@@ -1,0 +1,25 @@
+chat-app-backend/
+  ├── server.js
+  ├── db.js
+  ├── models/
+  │     ├── User.js
+  │     ├── Message.js
+  │     ├── Group.js
+  ├── package.json
+
+
+
+
+chat-app-frontend/
+ ├── public/
+ │    ├── index.html
+ ├── src/
+ │    ├── App.js
+ │    ├── index.js
+ │    ├── api.js
+ │    ├── components/
+ │    │    ├── ChatWindow.js
+ │    │    ├── MessageList.js
+ │    │    ├── OnlineUsers.js
+ │    │    └── MessageInput.js
+ ├── package.json
