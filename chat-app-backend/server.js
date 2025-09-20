@@ -9,18 +9,20 @@ import bodyParser from "body-parser";
 const app = express();
 const server = http.createServer(app);
 
-// CORS configuration
+// Allowed origins for CORS
 const allowedOrigins = [
-  "http://localhost:3000", // Local frontend
-  "https://chat-2-2tsj.onrender.com" // Deployed frontend
+  "http://localhost:3000",                 // Local frontend
+  "https://chat-2-2tsj.onrender.com"      // Deployed frontend
 ];
 
+// Middleware
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
+
     if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = `The CORS policy for this site does not allow access from the specified Origin.`;
+      const msg = "The CORS policy for this site does not allow access from the specified Origin.";
       return callback(new Error(msg), false);
     }
     return callback(null, true);
@@ -28,11 +30,10 @@ app.use(cors({
   credentials: true
 }));
 
-// Body parser middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Example HTTP route
+// Test route
 app.get("/", (req, res) => {
   res.send("Server is running!");
 });
@@ -46,36 +47,24 @@ const io = new Server(server, {
   }
 });
 
-// Socket.IO connection
+// Handle Socket.IO connections
 io.on("connection", (socket) => {
   console.log("New client connected: " + socket.id);
 
-  // Example: receive message from a client
+  // Listen for incoming messages
   socket.on("message", (data) => {
     console.log("Message received:", data);
-    // Broadcast message to all connected clients
+    // Broadcast to all connected clients
     io.emit("message", data);
   });
 
-  // Example: join room
-  socket.on("joinRoom", (room) => {
-    socket.join(room);
-    console.log(`Socket ${socket.id} joined room ${room}`);
-    io.to(room).emit("message", `User ${socket.id} joined room ${room}`);
-  });
-
-  // Example: send message to a specific room
-  socket.on("roomMessage", ({ room, message }) => {
-    io.to(room).emit("message", message);
-  });
-
-  // Handle disconnect
+  // Handle disconnection
   socket.on("disconnect", () => {
     console.log("Client disconnected: " + socket.id);
   });
 });
 
-// Start the server
+// Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
