@@ -6,7 +6,8 @@ import API from "./api";
 import CreateGroup from "./components/CreateGroup";
 import GroupChat from "./components/GroupChat";
 
-const socket = io("http://localhost:5000");
+const socket = io("https://chat-2-2tsj.onrender.com");  // ✅ correct
+
 
 function App() {
   const [messages, setMessages] = useState([]);
