@@ -1,71 +1,70 @@
 // server.js
-import express from "express";
-import http from "http";
-import { Server } from "socket.io";
-import cors from "cors";
-import bodyParser from "body-parser";
+const express = require("express");
+const cors = require("cors");
+const http = require("http");
+const { Server } = require("socket.io");
+const sequelize = require("./db");
+const Message = require("./models/Message");
+const path = require("path");
 
-// Initialize Express app
 const app = express();
-const server = http.createServer(app);
+app.use(cors());
+app.use(express.json());
 
-// Allowed origins for CORS
-const allowedOrigins = [
-  "http://localhost:3000",                 // Local frontend
-  "https://chat-2-2tsj.onrender.com"      // Deployed frontend
-];
-
-// Middleware
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = "The CORS policy for this site does not allow access from the specified Origin.";
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true
-}));
-
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Test route
-app.get("/", (req, res) => {
-  res.send("Server is running!");
-});
-
-// Initialize Socket.IO
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
-    credentials: true
+// 👉 Route to fetch old chat messages
+app.get("/messages", async (req, res) => {
+  try {
+    const messages = await Message.findAll({
+      order: [["createdAt", "ASC"]],
+    });
+    res.json(messages);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Handle Socket.IO connections
+// Serve React build files
+app.use(express.static(path.join(__dirname, "build")));
+
+// Catch-all route for React (Express v5+)
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, "build", "index.html"));
+});
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000", // React frontend
+  },
+});
+
+// socket.io for real-time chat
 io.on("connection", (socket) => {
-  console.log("New client connected: " + socket.id);
+  console.log("✅ User connected:", socket.id);
 
-  // Listen for incoming messages
-  socket.on("message", (data) => {
-    console.log("Message received:", data);
-    // Broadcast to all connected clients
-    io.emit("message", data);
+  socket.on("joinRoom", (room) => {
+    socket.join(room);
+    console.log(`User ${socket.id} joined room ${room}`);
   });
 
-  // Handle disconnection
+  socket.on("sendMessage", async (data) => {
+    const newMessage = await Message.create({
+      sender: data.sender,
+      content: data.content,
+      room: data.room,
+    });
+    io.to(data.room).emit("receiveMessage", newMessage); // send to room only
+  });
+
   socket.on("disconnect", () => {
-    console.log("Client disconnected: " + socket.id);
+    console.log("❌ User disconnected:", socket.id);
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+sequelize.sync() // No force: true in production!
+  .then(() => {
+    console.log("✅ Database synced");
+    server.listen(5000, () => {
+      console.log("🚀 Server running on http://localhost:5000");
+    });
+  });
