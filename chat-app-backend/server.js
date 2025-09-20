@@ -1,92 +1,82 @@
 // server.js
-const express = require("express");
-const cors = require("cors");
-const http = require("http");
-const { Server } = require("socket.io");
-const sequelize = require("./db");
-const Message = require("./models/Message");
-const path = require("path");
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+import cors from "cors";
+import bodyParser from "body-parser";
 
+// Initialize Express app
 const app = express();
+const server = http.createServer(app);
 
-// ✅ Express CORS for REST API
+// CORS configuration
+const allowedOrigins = [
+  "http://localhost:3000", // Local frontend
+  "https://chat-2-2tsj.onrender.com" // Deployed frontend
+];
+
 app.use(cors({
-  origin: "https://chat-2-2tsj.onrender.com", // deployed frontend URL
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = `The CORS policy for this site does not allow access from the specified Origin.`;
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   credentials: true
 }));
 
-app.use(express.json());
+// Body parser middleware
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// 👉 Route to fetch old chat messages
-app.get("/messages", async (req, res) => {
-  try {
-    const messages = await Message.findAll({
-      order: [["createdAt", "ASC"]],
-    });
-    res.json(messages);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// Example HTTP route
+app.get("/", (req, res) => {
+  res.send("Server is running!");
 });
 
-// Serve React build files
-app.use(express.static(path.join(__dirname, "build")));
-
-// Catch-all route for React (Express v5+)
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, "build", "index.html"));
-});
-
-// Create HTTP server
-const server = http.createServer(app);
-
-// ✅ Socket.IO for real-time chat with CORS
+// Initialize Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: "https://chat-2-2tsj.onrender.com", // deployed frontend URL
-    methods: ["GET", "POST"]
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
-// Socket.IO events
+// Socket.IO connection
 io.on("connection", (socket) => {
-  console.log("✅ User connected:", socket.id);
+  console.log("New client connected: " + socket.id);
 
-  // Join a chat room
+  // Example: receive message from a client
+  socket.on("message", (data) => {
+    console.log("Message received:", data);
+    // Broadcast message to all connected clients
+    io.emit("message", data);
+  });
+
+  // Example: join room
   socket.on("joinRoom", (room) => {
     socket.join(room);
-    console.log(`User ${socket.id} joined room ${room}`);
+    console.log(`Socket ${socket.id} joined room ${room}`);
+    io.to(room).emit("message", `User ${socket.id} joined room ${room}`);
   });
 
-  // Handle sending messages
-  socket.on("sendMessage", async (data) => {
-    try {
-      const newMessage = await Message.create({
-        sender: data.sender,
-        content: data.content,
-        room: data.room,
-      });
-      io.to(data.room).emit("receiveMessage", newMessage); // broadcast to room
-    } catch (err) {
-      console.error("Error saving message:", err.message);
-    }
+  // Example: send message to a specific room
+  socket.on("roomMessage", ({ room, message }) => {
+    io.to(room).emit("message", message);
   });
 
-  // Disconnect
+  // Handle disconnect
   socket.on("disconnect", () => {
-    console.log("❌ User disconnected:", socket.id);
+    console.log("Client disconnected: " + socket.id);
   });
 });
 
-// Sync database and start server
-sequelize.sync() // No force: true in production
-  .then(() => {
-    console.log("✅ Database synced");
-    const PORT = process.env.PORT || 5000;
-    server.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-    });
-  })
-  .catch(err => {
-    console.error("Database sync error:", err.message);
-  });
+// Start the server
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
