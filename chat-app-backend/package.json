@@ -4,7 +4,7 @@
   "private": true,
   "description": "",
   "main": "server.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
     "start:backend": "node server.js",
